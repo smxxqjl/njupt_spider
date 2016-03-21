@@ -35,6 +35,7 @@ class NoDisrSpiderSpider(scrapy.Spider):
             if content != lastcontent:
                 self.writetofile.write(content.encode('utf-8') + '\n\n')
             lastcontent = content
+        self.writetofile.write('--------------------------------------------\n')
 
         for url in tovisit_urls:
             yield scrapy.Request(url, callback=self.parse)
