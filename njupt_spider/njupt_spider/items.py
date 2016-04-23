@@ -12,3 +12,4 @@ class NjuptSpiderItem(scrapy.Item):
     url = scrapy.Field()
     date = scrapy.Field()
     title = scrapy.Field()
+    depart = scrapy.Field()
