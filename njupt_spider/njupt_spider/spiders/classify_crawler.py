@@ -2,34 +2,36 @@
 import scrapy
 from njupt_spider.items import NjuptSpiderItem
 import re
-import os
 import json
-import sys
-reload(sys) 
-sys.setdefaultencoding('utf-8')
+import os.path
+import pickle
 
 class classifyCrawler(scrapy.Spider):
+    firstCrawl = True
+    # This two dict stores the data about least reacent read news
+    # Difference between the two are the variable 'most NewsDict is created when program is end
+    # Another one is readed from last running crawler, which is to say when first crawls, 
+    # The most NewsDictRead dict would be empty
+    mostNewsDict = dict()
+    mostNewsDictRead = dict()
+    # You can not declear a constant value in python, just don't change it
+    DictReadFileName = 'DictReadFileName'
+    count = 0
     fp = file('text', 'wb')
     name = 'classify_crawler'
     allowed_domain = ['njupt.edu.cn']
     start_urls = [
-            'http://www.njupt.edu.cn/s/1/t/1/p/1/c/4/d/29/list.htm'
+            'http://www.njupt.edu.cn/'
             ]
 
-    # This function is abolished we get subdomain from search engine as showed in another parse function
-    '''
     def parse(self, response):
-        # This is the indexpage parsing, to get the most subdomain of njupt
-        depart_list = response.xpath('//*[@id="Map"]/area/@href').extract()
-        title = response.xpath('//title/text()').extract()[0]
-        status_list = list()
-        status_list.append(title)
-        callback = lambda response:self.secondparse(response, status_list)
-        for url in depart_list:
-            yield scrapy.Request(url, callback=callback)
-    '''
-    def parse(self, response):
-        #yield scrapy.Request('http://gdgc.njupt.edu.cn/', callback=self.secondparse)
+        #Determine if previous least recent data is stored by check the file existence
+        #if so read it
+        if (os.path.isfile(self.DictReadFileName)):
+            firstCrawl = False
+            with open(self.DictReadFileName, 'rb') as fp:
+                self.mostNewsDictRead = pickle.load(fp)
+
         with open('urlset') as fp:
             nexturls = fp.read().splitlines()
             for url in nexturls:
@@ -38,25 +40,27 @@ class classifyCrawler(scrapy.Spider):
     def secondparse(self, response):
         #Search for news block in html generally by guess
         depart = response.xpath('//title/text()').extract()[0]
+        self.count += 1
+        depart = depart.strip()
+        print self.count
+        print depart
+        # This remains doubt but still quiet accurate so far 
         more_list = response.xpath('//div[@align="right"]/a/@href').extract()
         for url in more_list:
             url = response.urljoin(url)
-            yield scrapy.Request(url, callback=self.thirdparse, meta={'depart': depart})
+            #yield scrapy.Request(url, callback=self.thirdparse, meta={'depart': depart})
 
+    #This fuction makes a duplicate request to get the depart name, we keep this duplicate to approach simplicty
     def thirdparse(self, response):
         print 'Third parse' + response.url
         depart = response.xpath('//title/text()').extract()[0]
         yield scrapy.Request(response.url, callback=self.fourthparse, dont_filter=True,meta={'depart': response.meta['depart'] + depart})
 
     def fourthparse(self, response):
-        for sel in response.xpath('//a'):
-            if len(sel.xpath('@title').extract()) != 0 and "下一页".decode('utf8') in sel.xpath('@title').extract()[0]:
-                if len(sel.xpath('@href')) != 0:
-                    nexturl = sel.xpath('@href').extract()[0]
-                    nexturl = response.urljoin(nexturl)
-                    yield scrapy.Request(nexturl, callback=self.fourthparse, meta={'depart': response.meta['depart']})
+        # Flag to show if this is the last page got unget news
+        theLastPage = False
 
-        if len(response.xpath('//td[@class="postTime"]')) >= 3:
+        if len(response.xpath('//td[@class="postTime"]')) >= 5:
             for news in response.xpath('//td[@class="postTime"]'):
                 item = NjuptSpiderItem()
                 item['date'] = news.xpath('text()').extract()[0]
@@ -70,6 +74,7 @@ class classifyCrawler(scrapy.Spider):
                 outputstring = ''.join(unicode(outputstring, 'utf-8').splitlines())
                 #self.fp.write(outputstring+'\n')
                 #yield item  
+
         else:
             gotNews = False
             count = 0
@@ -101,6 +106,14 @@ class classifyCrawler(scrapy.Spider):
                         break;
             if gotNews == False:
                 print 'No news is found on' + response.url
+
+        if theLastPage == False:
+            for sel in response.xpath('//a'):
+                if len(sel.xpath('@title').extract()) != 0 and "下一页".decode('utf8') in sel.xpath('@title').extract()[0]:
+                    if len(sel.xpath('@href')) != 0:
+                        nexturl = sel.xpath('@href').extract()[0]
+                        nexturl = response.urljoin(nexturl)
+                        yield scrapy.Request(nexturl, callback=self.fourthparse, meta={'depart': response.meta['depart']})
 
         #This is a parser for the news has no time in the newslist after this operation, the news will be written out
     def timeparse(self, response):
