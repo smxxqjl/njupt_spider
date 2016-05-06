@@ -14,3 +14,4 @@ class NjuptSpiderItem(scrapy.Item):
     title = scrapy.Field()
     depart = scrapy.Field()
     timestamp = scrapy.Field()
+    section = scrapy.Field()

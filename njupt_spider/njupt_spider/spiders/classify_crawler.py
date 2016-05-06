@@ -32,7 +32,7 @@ class classifyCrawler(scrapy.Spider):
         print "This is a message after all have been done"
         for key, item in self.mostNewsDict.iteritems():
             print type(item)
-            print item['depart'] + ' ' + item['title'] + ' ' + str(item['timestamp'])
+            print item['depart'] + ' ' + item['section'] + item['title'] + ' ' + str(item['timestamp'])
     def parse(self, response):
         #Determine if previous least recent data is stored by check the file existence
         #if so read it
@@ -67,8 +67,9 @@ class classifyCrawler(scrapy.Spider):
     #This fuction makes a duplicate request to get the depart name, we keep this duplicate to approach simplicty
     def thirdparse(self, response):
         print 'Third parse' + response.url
-        depart = response.xpath('//title/text()').extract()[0]
-        depart = response.meta['depart'] + depart
+        section = response.xpath('//title/text()').extract()[0]
+        section = section.strip()
+        depart = response.meta['depart'] + section
         depart = depart.strip()
         depart = ''.join(unicode(depart.encode('utf8'), 'utf-8').splitlines())
 	'''
@@ -126,27 +127,30 @@ class classifyCrawler(scrapy.Spider):
                                 break
                             print 'This is url' + response.url
                             break
-            item['depart'] = depart
             item['timestamp'] = 2000
+            item['depart'] =  response.meta['depart']
+            item['section'] = section
             if 'title' in item:
                 try:
                     self.mostNewsDict[depart] = item
                 except:
                     print response.url + " no news is found"
                 #---------------------------------------------------------------------------
-
                 yield scrapy.Request(response.url, callback=self.fourthparse, 
-                            dont_filter=True,meta={'depart': depart, 'timestamp': 2000})
+                        dont_filter=True,meta={'depart': depart, 'timestamp': 2000, 'falsedepart': response.meta['depart'], 
+                            'section': section})
         else:
+            print response.meta['depart']
+            print section
             print 'go on and on'
             yield scrapy.Request(response.url, callback=self.fourthAfterparse, 
-                        dont_filter=True,meta={'depart': depart})
+                    dont_filter=True,meta={'depart': depart, 'falsedepart': response.meta['depart'], 
+                        'section': section})
 
     def shadowCrawlparse(self, response):
         pass
 
     def shadowFirstCrawlparse(self, response):
-
         if len(response.xpath('//td[@class="postTime"]')) >= 5:
             pagenum = len(response.xpath('//td[@class="postTime"]'))
         else:
@@ -187,17 +191,20 @@ class classifyCrawler(scrapy.Spider):
                     break
                 count = count + 1
             for news in response.xpath('//td[@class="postTime"]'):
+                item = NjuptSpiderItem()
+                print '-------------------------------------------------------------------'
                 if count == 0:
                     break
-                item = NjuptSpiderItem()
-                item['depart'] = response.meta['depart']
+                item['depart'] = response.meta['falsedepart']
                 item['date'] = news.xpath('text()').extract()[0]
                 url = news.xpath('../td/a/@href').extract()[0]
                 item['title'] = news.xpath('../td/a/font/text()').extract()[0]
                 item['url'] = response.urljoin(url)
                 item['timestamp'] = lasttimeStamp + count
+                item['section'] = response.meta['section']
                 outputstring = item['title']+response.meta['depart'].strip()+';'
                 if depart.encode('utf8') not in self.mostNewsDict:
+                    print "---------------------------------------------------------------------"
                     self.mostNewsDict[depart.encode('utf8')] = item
                 print outputstring
                 outputstring = outputstring.encode('utf8')
@@ -228,9 +235,9 @@ class classifyCrawler(scrapy.Spider):
                                 break
                             count += 1
                         for news in newslist:
+                            item = NjuptSpiderItem()
                             if count == 0:
                                 break
-                            item = NjuptSpiderItem()
                             if len(news.xpath('.//a/font')) != 0:
                                 item['title'] = news.xpath('.//a/font/text()').extract()[0]
                             elif len(news.xpath('.//a/text()').extract()) != 0:
@@ -239,7 +246,8 @@ class classifyCrawler(scrapy.Spider):
                                 continue
                             item['date'] = '2000-01-02'
                             item['url'] = response.urljoin(news.xpath('.//a/@href').extract()[0])
-                            item['depart'] = response.meta['depart']
+                            item['depart'] = response.meta['falsedepart']
+                            item['section'] = response.meta['section']
                             item['timestamp'] = count + self.mostNewsDictRead[depart.encode('utf8')]['timestamp']
                             count -= 1
                             if depart.encode('utf8') not in self.mostNewsDict:
@@ -256,12 +264,14 @@ class classifyCrawler(scrapy.Spider):
         if len(response.xpath('//td[@class="postTime"]')) >= 5:
             for news in response.xpath('//td[@class="postTime"]'):
                 item = NjuptSpiderItem()
+                item['depart'] = response.meta['falsedepart']
                 item['date'] = news.xpath('text()').extract()[0]
                 url = news.xpath('../td/a/@href').extract()[0]
                 item['title'] = news.xpath('../td/a/font/text()').extract()[0]
                 item['url'] = response.urljoin(url)
                 item['timestamp'] = response.meta['timestamp'] - count
-                outputstring = item['title']+response.meta['depart']+';'
+                item['section'] = response.meta['section']
+                outputstring = item['title']+response.meta['depart']+ str(item['timestamp']) +';'
                 print outputstring
                 outputstring = outputstring.encode('utf8')
                 #delete all magic line break in string, the world comes in peace
@@ -288,16 +298,18 @@ class classifyCrawler(scrapy.Spider):
                             item = NjuptSpiderItem()
                             if len(news.xpath('.//a/font')) != 0:
                                 item['title'] = news.xpath('.//a/font/text()').extract()[0]
-                            else:
+                            elif len(news.xpath('.//a/text()').extract()) != 0:
                                 item['title'] = news.xpath('.//a/text()').extract()[0]
+                            else:
+                                continue
                             item['date'] = '2000-01-02'
                             item['url'] = response.urljoin(news.xpath('.//a/@href').extract()[0])
-                            item['depart'] = response.meta['depart']
+                            item['depart'] = response.meta['falsedepart']
                             item['timestamp'] = response.meta['timestamp'] - count
+                            item['section'] = response.meta['section']
                             yield scrapy.Request(item['url'], callback=self.timeparse, meta={'item': item})
                             count += 1
                             #yield item
-                        print 'This is url' + response.url
                         break;
             if gotNews == False:
                 print 'No news is found on' + response.url
@@ -307,8 +319,9 @@ class classifyCrawler(scrapy.Spider):
                 if len(sel.xpath('@href')) != 0:
                     nexturl = sel.xpath('@href').extract()[0]
                     nexturl = response.urljoin(nexturl)
-                    #yield scrapy.Request(nexturl, callback=self.fourthparse
-                            #, meta={'depart': response.meta['depart'], 'timestamp': response.meta['timestamp'] - count})
+                    yield scrapy.Request(nexturl, callback=self.fourthparse
+                            , meta={'depart': response.meta['depart'], 'timestamp': response.meta['timestamp'] - count,
+                                'falsedepart': response.meta['falsedepart'], 'section': response.meta['section']})
 
         #This is a parser for the news has no time in the newslist after this operation, the news will be written out
     def timeparse(self, response):
