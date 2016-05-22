@@ -3,6 +3,7 @@ import scrapy
 from scrapy.xlib.pydispatch import dispatcher
 from scrapy import signals
 from njupt_spider.items import NjuptSpiderItem
+from njupt_spider.MongoDB_Driver import MongoDB_Driver
 import re
 import json
 import os.path
@@ -16,6 +17,7 @@ class classifyCrawler(scrapy.Spider):
     # The most NewsDictRead dict would be empty
     mostNewsDict = dict()
     mostNewsDictRead = dict()
+    db = MongoDB_Driver('10.20.100.5', 27017, '南京邮电大学'.decode('utf8'))
     # You can not declear a constant value in python, just don't change it
     DictReadFileName = 'DictReadFileName'
     count = 0
@@ -28,6 +30,9 @@ class classifyCrawler(scrapy.Spider):
 
     def __init__(self):
         dispatcher.connect(self.testInend, signals.spider_idle)
+        with open(self.DictReadFileName, 'wb') as fp:
+                self.mostNewsDictRead = pickle.dump(self.DictReadFileName, fp)
+
     def testInend(self):
         print "This is a message after all have been done"
         for key, item in self.mostNewsDict.iteritems():
@@ -46,18 +51,13 @@ class classifyCrawler(scrapy.Spider):
         with open('urlset') as fp:
             nexturls = fp.read().splitlines()
             for url in nexturls:
-                if count == 0:
-                    break;
                 yield scrapy.Request(url, callback=self.secondparse)
-                count -= 1
 
     def secondparse(self, response):
         #Search for news block in html generally by guess
         depart = response.xpath('//title/text()').extract()[0]
         self.count += 1
         depart = depart.strip()
-        print self.count
-        print depart
         # This remains doubt but still quiet accurate so far 
         more_list = response.xpath('//div[@align="right"]/a/@href').extract()
         for url in more_list:
@@ -80,13 +80,12 @@ class classifyCrawler(scrapy.Spider):
             yield scrapy.Request(response.url, callback=self.shadowCrawlparse, 
                     dont_filter=True,meta={'depart':depart,'baseurl':response.url,'itemnum': 0})
         '''
-        print depart
         if self.firstCrawl or depart.encode('utf8') not in self.mostNewsDictRead:
             print 'init'
             #Add new feature to make a dict of least recent news dictionary 
             #Following code get the least recent news it's simple copy of part of fourthparse code
             #-------------------------------------------------------------------------
-            item = NjuptSpiderItem()
+            item = dict()
             if len(response.xpath('//td[@class="postTime"]')) >= 5:
                 for news in response.xpath('//td[@class="postTime"]'):
                     item['date'] = news.xpath('text()').extract()[0]
@@ -94,7 +93,6 @@ class classifyCrawler(scrapy.Spider):
                     item['title'] = news.xpath('../td/a/font/text()').extract()[0]
                     item['url'] = response.urljoin(url)
                     outputstring = item['title']+response.meta['depart']+';'
-                    print outputstring
                     outputstring = outputstring.encode('utf8')
                     #delete all magic line break in string, the world comes in peace
                     outputstring = ''.join(unicode(outputstring, 'utf-8').splitlines())
@@ -191,7 +189,7 @@ class classifyCrawler(scrapy.Spider):
                     break
                 count = count + 1
             for news in response.xpath('//td[@class="postTime"]'):
-                item = NjuptSpiderItem()
+                item = dict()
                 print '-------------------------------------------------------------------'
                 if count == 0:
                     break
@@ -206,7 +204,7 @@ class classifyCrawler(scrapy.Spider):
                 if depart.encode('utf8') not in self.mostNewsDict:
                     print "---------------------------------------------------------------------"
                     self.mostNewsDict[depart.encode('utf8')] = item
-                print outputstring
+                self.db.db_insert(item['depart'], item)
                 outputstring = outputstring.encode('utf8')
                 outputstring = ''.join(unicode(outputstring, 'utf-8').splitlines())
                 count = count - 1
@@ -235,7 +233,7 @@ class classifyCrawler(scrapy.Spider):
                                 break
                             count += 1
                         for news in newslist:
-                            item = NjuptSpiderItem()
+                            item = dict()
                             if count == 0:
                                 break
                             if len(news.xpath('.//a/font')) != 0:
@@ -263,7 +261,7 @@ class classifyCrawler(scrapy.Spider):
         count = 0
         if len(response.xpath('//td[@class="postTime"]')) >= 5:
             for news in response.xpath('//td[@class="postTime"]'):
-                item = NjuptSpiderItem()
+                item = dict()
                 item['depart'] = response.meta['falsedepart']
                 item['date'] = news.xpath('text()').extract()[0]
                 url = news.xpath('../td/a/@href').extract()[0]
@@ -272,7 +270,7 @@ class classifyCrawler(scrapy.Spider):
                 item['timestamp'] = response.meta['timestamp'] - count
                 item['section'] = response.meta['section']
                 outputstring = item['title']+response.meta['depart']+ str(item['timestamp']) +';'
-                print outputstring
+                self.db.db_insert(item['depart'], item)
                 outputstring = outputstring.encode('utf8')
                 #delete all magic line break in string, the world comes in peace
                 outputstring = ''.join(unicode(outputstring, 'utf-8').splitlines())
@@ -295,7 +293,7 @@ class classifyCrawler(scrapy.Spider):
                     newslist = region.xpath('li|tr')
                     if gotNews:
                         for news in newslist:
-                            item = NjuptSpiderItem()
+                            item = dict()
                             if len(news.xpath('.//a/font')) != 0:
                                 item['title'] = news.xpath('.//a/font/text()').extract()[0]
                             elif len(news.xpath('.//a/text()').extract()) != 0:
@@ -333,4 +331,4 @@ class classifyCrawler(scrapy.Spider):
         elif len(datelist) > 1:
             print 'Multiple date info is found extract the first one, warning!'
         item['date'] = datelist[0]
-        print item['depart'] + item['title']
+        self.db.db_insert(item['depart'], item)

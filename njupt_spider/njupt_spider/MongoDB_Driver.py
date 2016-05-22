@@ -91,5 +91,3 @@ class MongoDB_Driver:
 
         file=fs.get_last_version(filename=file)
         fs.delete(file._id)
-mon=MongoDB_Driver()
-mon.db_insert('Data',{'destination':'nanjing'})
