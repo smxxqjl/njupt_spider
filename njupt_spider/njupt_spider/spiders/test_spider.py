@@ -4,10 +4,16 @@ import scrapy
 
 class TestSpiderSpider(scrapy.Spider):
     name = "test_spider"
-    allowed_domains = ["http://www.njupt.edu.cn"]
+    allowed_domains = ["njupt.edu.cn",
+            "nuaa.edu.cn"]
     start_urls = (
-        'http://www.http://www.njupt.edu.cn/',
-    )
+            'http://www.njupt.edu.cn/',
+            )
 
     def parse(self, response):
-        pass
+        ptags = response.xpath('//p')
+        print ptags[0]
+        print ptags[0].extract()
+        print '---------------------------------'
+        newpath = ptags[0].xpath('..')
+        print newpath.extract()[0]

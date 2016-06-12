@@ -58,6 +58,7 @@ class classifyCrawler(scrapy.Spider):
         depart = response.xpath('//title/text()').extract()[0]
         self.count += 1
         depart = depart.strip()
+        depart = depart.replace('南京邮电大学'.decode('utf8'), '')
         # This remains doubt but still quiet accurate so far 
         more_list = response.xpath('//div[@align="right"]/a/@href').extract()
         for url in more_list:
@@ -69,6 +70,8 @@ class classifyCrawler(scrapy.Spider):
         print 'Third parse' + response.url
         section = response.xpath('//title/text()').extract()[0]
         section = section.strip()
+        section = section.replace('南京邮电大学'.decode('utf8'), '')
+        print 'section++++++++' + section
         depart = response.meta['depart'] + section
         depart = depart.strip()
         depart = ''.join(unicode(depart.encode('utf8'), 'utf-8').splitlines())
@@ -167,17 +170,6 @@ class classifyCrawler(scrapy.Spider):
                     newslist = region.xpath('li|tr')
 
     def fourthAfterparse(self, response):
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
-        print '|'
         depart = response.meta['depart']
         count = 0
         checkname = self.mostNewsDictRead[response.meta['depart'].encode('utf8')]['title']
