@@ -29,13 +29,16 @@ class classifyCrawler(scrapy.Spider):
             ]
 
     def __init__(self):
+        print type(self.mostNewsDict)
         dispatcher.connect(self.testInend, signals.spider_idle)
 
     def testInend(self):
         # Using pickle.dump to write a dict to a file which will over write the 
         # original
+        print "---------------" + self.name
         with open(self.DictReadFileName, 'wb') as fp:
                 self.mostNewsDict = pickle.dump(self.DictReadFileName, fp)
+        print type(self.mostNewsDict)
         for key, item in self.mostNewsDict.iteritems():
             print item['depart'] + ' ' + item['section'] + item['title'] + ' ' + str(item['timestamp'])
 
