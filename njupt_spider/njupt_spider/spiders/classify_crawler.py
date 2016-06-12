@@ -11,17 +11,17 @@ import pickle
 
 class classifyCrawler(scrapy.Spider):
     firstCrawl = True
-    # This two dict stores the data about least reacent read news
-    # Difference between the two are the variable 'most NewsDict is created when program is end
-    # Another one is readed from last running crawler, which is to say when first crawls, 
-    # The most NewsDictRead dict would be empty
+    # Two dict are used for news diff control
+    # One for storing the last readed latest news(mostnewsDictRead from the file)
+    # One for storing latest news readed this time(mostNewsDict)
     mostNewsDict = dict()
     mostNewsDictRead = dict()
+
+    # Connect to Mongo Database
     db = MongoDB_Driver('10.20.100.5', 27017, '南京邮电大学'.decode('utf8'))
+
     # You can not declear a constant value in python, just don't change it
     DictReadFileName = 'DictReadFileName'
-    count = 0
-    fp = file('text', 'wb')
     name = 'classify_crawler'
     allowed_domain = ['njupt.edu.cn']
     start_urls = [
@@ -30,20 +30,20 @@ class classifyCrawler(scrapy.Spider):
 
     def __init__(self):
         dispatcher.connect(self.testInend, signals.spider_idle)
-        with open(self.DictReadFileName, 'wb') as fp:
-                self.mostNewsDictRead = pickle.dump(self.DictReadFileName, fp)
 
     def testInend(self):
-        print "This is a message after all have been done"
+        # Using pickle.dump to write a dict to a file which will over write the 
+        # original
+        with open(self.DictReadFileName, 'wb') as fp:
+                self.mostNewsDict = pickle.dump(self.DictReadFileName, fp)
         for key, item in self.mostNewsDict.iteritems():
-            print type(item)
             print item['depart'] + ' ' + item['section'] + item['title'] + ' ' + str(item['timestamp'])
+
     def parse(self, response):
         #Determine if previous least recent data is stored by check the file existence
         #if so read it
-        count = 3
         if (os.path.isfile(self.DictReadFileName)):
-            print 'Yessss -------------'
+            print "Last news is found and read it"
             self.firstCrawl = False
             with open(self.DictReadFileName, 'rb') as fp:
                 self.mostNewsDictRead = pickle.load(fp)
@@ -56,7 +56,6 @@ class classifyCrawler(scrapy.Spider):
     def secondparse(self, response):
         #Search for news block in html generally by guess
         depart = response.xpath('//title/text()').extract()[0]
-        self.count += 1
         depart = depart.strip()
         depart = depart.replace('南京邮电大学'.decode('utf8'), '')
         # This remains doubt but still quiet accurate so far 
