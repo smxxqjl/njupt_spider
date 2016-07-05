@@ -2,14 +2,14 @@
 import requests
 
 
-card_id = '110201400803900'
+card_id = '110201400952000'
 def fun():
-	for j in range(1, 1000):
+	for j in range(11, 1000):
 		substring2 = str(j-1)
 		substring2 = (4 - len(substring2))*'0' + substring2
 		for i in range(1, 32):
 		    substring1 = str(i)
-			if len(substring1) < 2:
+		    if len(substring1) < 2:
 		    	substring1 = '0' + substring1 
 		    string = substring1+substring2
 		    data = {

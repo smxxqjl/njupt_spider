@@ -16,9 +16,10 @@ class classifyCrawler(scrapy.Spider):
     # One for storing latest news readed this time(mostNewsDict)
     mostNewsDict = dict()
     mostNewsDictRead = dict()
+    unhandlefp = file('unhandleurl', 'w')
 
     # Connect to Mongo Database
-    # db = MongoDB_Driver('10.20.100.5', 27017, '南京邮电大学'.decode('utf8'))
+    db = MongoDB_Driver('180.209.64.38', 40020, '南京邮电大学'.decode('utf8'))
 
     # You can not declear a constant value in python, just don't change it
     DictReadFileName = 'DictReadFileName'
@@ -53,22 +54,30 @@ class classifyCrawler(scrapy.Spider):
 
         with open('urlset') as fp:
             nexturls = fp.read().splitlines()
-            '''
             for url in nexturls:
-                if testurl == 0:
-                    break
-                testurl -= 1
                 yield scrapy.Request(url, callback=self.secondparse)
-            '''
-            yield scrapy.Request('http://rsc.njupt.edu.cn/', callback=self.secondparse)
+            #yield scrapy.Request('http://rsc.njupt.edu.cn/', callback=self.secondparse)
 
     def secondparse(self, response):
         #Search for news block in html generally by guess
         depart = response.xpath('//title/text()').extract()[0]
         depart = depart.strip()
         depart = depart.replace('南京邮电大学'.decode('utf8'), '')
-        # This remains doubt but still quiet accurate so far 
-        more_list = response.xpath('//div[@align="right"]/a/@href').extract()
+        if 'zs.njupt' in response.url:
+            more_list = response.xpath('//div[@class="more"]/a/@href').extract()
+        elif 'tdxy.njupt' in response.url:
+            more_list = response.xpath('//*[@id="news"]/div[1]/span/a/@href').extract()
+        elif 'bc.njupt' in response.url:
+            more_list = response.xpath('//a[@id="more"]/@href').extract()
+        elif 'kjc.njupt' in response.url:
+            more_list = list()
+            more_list.append(response.xpath('//*[@id="right"]/div[2]/div[1]/div/span[2]/a/@href'))
+            more_list.append(response.xpath('//*[@id="dynamic"]/span[2]/a/@href'))
+        else: 
+            more_list = response.xpath('//div[@align="right"]/a/@href').extract()
+        if len(more_list) == 0:
+            print response.url + 'no department'
+            self.unhandlefp.write(response.url+'\n')
         for url in more_list:
             url = response.urljoin(url)
             yield scrapy.Request(url, callback=self.thirdparse, meta={'depart': depart})
@@ -82,69 +91,19 @@ class classifyCrawler(scrapy.Spider):
         print 'section++++++++' + section
         depart = response.meta['depart'] + section
         depart = depart.strip()
-        #depart = ''.join(unicode(depart.encode('utf8'), 'utf-8').splitlines())
         print depart
         if self.firstCrawl or depart not in self.mostNewsDictRead:
-            '''
-            #Add new feature to make a dict of least recent news dictionary 
-            #Following code get the least recent news it's simple copy of part of fourthparse code
-            #-------------------------------------------------------------------------
-            item = dict()
-            if len(response.xpath('//td[@class="postTime"]')) >= 5:
-                for news in response.xpath('//td[@class="postTime"]'):
-                    item['date'] = news.xpath('text()').extract()[0]
-                    url = news.xpath('../td/a/@href').extract()[0]
-                    item['title'] = news.xpath('../td/a/font/text()').extract()[0]
-                    item['url'] = response.urljoin(url)
-                    break
-            else:
-                gotNews = False
-                count = 0
-                for region in response.xpath('//*'):
-                    if len(region.xpath('li|tr')) >= 5:
-                        # Get the region has a lot info repetitive
-                        newslist = region.xpath('li|tr')
-                        for news in newslist:
-                            if len(news.xpath('.//a/@href').extract()) == 0:
-                                continue
-                            newurl = news.xpath('.//a/@href').extract()[0]
-                            if 'info' in news.xpath('.//a/@href').extract()[0]:
-                                gotNews = True
-                                break
-                        newslist = region.xpath('li|tr')
-                        if gotNews:
-                            for news in newslist:
-                                if len(news.xpath('.//a/font')) != 0:
-                                    item['title'] = news.xpath('.//a/font/text()').extract()[0]
-                                else:
-                                    item['title'] = news.xpath('.//a/text()').extract()[0]
-                                item['date'] = '2000-01-02'
-                                item['url'] = response.urljoin(news.xpath('.//a/@href').extract()[0])
-                                break
-                            print 'This is url' + response.url
-                            break
-            item['timestamp'] = 2000
-            item['depart'] =  response.meta['depart']
-            item['section'] = section
-            if 'title' in item:
-                try:
-                    self.mostNewsDict[depart] = item
-                except:
-                    print response.url + " no news is found"
-                yield scrapy.Request(response.url, callback=self.njuptGeneralScheme, 
-                        dont_filter=True,meta={'depart': depart, 'timestamp': 2000, 'falsedepart': response.meta['depart'], 
-                            'section': section, 'firstCrawl': self.firstCrawl})
-                            '''
-            print "here to yield"
+            # Determine if this department is crawled firstly
+            # It's worth noting that the firstcrawl parameter in scrapy.Request does not always save 
+            # the same value as self.firstCrawl does. Though the cralwer may run
+            # several times, but this section in the website has not crawled before now
             yield scrapy.Request(response.url, callback=self.njuptGeneralScheme, 
                 dont_filter=True,meta={'depart': depart, 'timestamp': 2000, 'falsedepart': response.meta['depart'], 
-                    'section': section, 'firstCrawl': self.firstCrawl, 'gotStamp': True})
+                    'section': section, 'firstCrawl': True, 'gotStamp': True, 'backurl': response.url})
         else:
-            print response.meta['depart']
-            print section
             yield scrapy.Request(response.url, callback=self.njuptGeneralScheme, 
                     dont_filter=True,meta={'depart': depart, 'falsedepart': response.meta['depart'], 
-                        'section': section, 'firstCrawl': self.firstCrawl})
+                        'section': section, 'firstCrawl': self.firstCrawl, 'backurl': response.url})
 
     def njuptGeneralScheme(self, response):
         if 'gotStamp' in response.meta:
@@ -190,9 +149,8 @@ class classifyCrawler(scrapy.Spider):
                             self.mostNewsDict[depart] = item
                     item['timestamp'] = response.meta['timestamp'] - count
                     count = count + 1
-                #self.db.db_insert(item['depart'], item)
+                self.db.db_insert(item['depart'], item)
         else:
-            gotNews = True
             for region in response.xpath('//*'):
                 if len(region.xpath('li|tr')) >= 5:
                     newslist = region.xpath('li|tr')
@@ -246,7 +204,7 @@ class classifyCrawler(scrapy.Spider):
                                 self.mostNewsDict[depart]= item
                             yield scrapy.Request(item['url'], callback=self.timeparse, meta={'item': item})
                         break;
-
+        '''
         if firstCrawl:
             for sel in response.xpath('//a'):
                 if len(sel.xpath('@title').extract()) != 0 and "下一页".decode('utf8') in sel.xpath('@title').extract()[0]:
@@ -257,6 +215,9 @@ class classifyCrawler(scrapy.Spider):
                                 , meta={'depart': response.meta['depart'], 'timestamp': response.meta['timestamp'] - count,
                                     'falsedepart': response.meta['falsedepart'], 'section': response.meta['section'],
                                 'firstCrawl': response.meta['firstCrawl']})
+        '''
+        if not gotNews:
+            self.unhandlefp.write(response.meta['backurl'] + '\n');
 
 
         #This is a parser for the news has no time in the newslist after this operation, the news will be written out
@@ -269,4 +230,4 @@ class classifyCrawler(scrapy.Spider):
         elif len(datelist) > 1:
             print 'Multiple date info is found extract the first one, warning!'
         item['date'] = datelist[0]
-        #self.db.db_insert(item['depart'], item)
+        self.db.db_insert(item['depart'], item)
