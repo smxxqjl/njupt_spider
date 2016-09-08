@@ -9,7 +9,7 @@ class departCrawler(scrapy.Spider):
     # holds all section
     name = 'depart_crawler'
     departDict = dict()
-    db = MongoDB_Driver('10.20.100.5', 27017, '南京邮电大学'.decode('utf8'))
+    db = MongoDB_Driver('180.209.64.38', 40020, '南京邮电大学'.decode('utf8'))
 
     allowed_domain = ['njupt.edu.cn']
     start_urls = [
